@@ -1,0 +1,1 @@
+rosrun vision lego-vision.py -show
