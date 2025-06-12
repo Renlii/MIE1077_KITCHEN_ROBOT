@@ -9,7 +9,7 @@ import sys
 import time
 import random
 import numpy as np
-
+import os
 import xml.etree.ElementTree as ET
 
 path = rospkg.RosPack().get_path("levelManager")
@@ -112,30 +112,27 @@ def readArgs():
 		exit()
 		pass
 
+"""
+brickDict:
+key: name of the object
+value: (type, (x,y,z) - size information)
+"""
 brickDict = { \
-		'X1-Y1-Z2': (0,(0.031,0.031,0.057)), \
-		'X1-Y2-Z1': (1,(0.031,0.063,0.038)), \
-		'X1-Y2-Z2': (2,(0.031,0.063,0.057)), \
-		'X1-Y2-Z2-CHAMFER': (3,(0.031,0.063,0.057)), \
-		'X1-Y2-Z2-TWINFILLET': (4,(0.031,0.063,0.057)), \
-		'X1-Y3-Z2': (5,(0.031,0.095,0.057)), \
-		'X1-Y3-Z2-FILLET': (6,(0.031,0.095,0.057)), \
-		'X1-Y4-Z1': (7,(0.031,0.127,0.038)), \
-		'X1-Y4-Z2': (8,(0.031,0.127,0.057)), \
-		'X2-Y2-Z2': (9,(0.063,0.063,0.057)), \
-		'X2-Y2-Z2-FILLET': (10,(0.063,0.063,0.057)) \
-		}
+    'plate_1': (0, (0.15,0.15,0.057)),
+    'plate_2': (1, (0.15,0.15,0.057))
+}
 
-brickOrientations = { \
-		'X1-Y2-Z1': (((1,1),(1,3)),-1.715224,0.031098), \
-		'X1-Y2-Z2-CHAMFER': (((1,1),(1,2),(0,2)),2.359515,0.015460), \
-		'X1-Y2-Z2-TWINFILLET': (((1,1),(1,3)),2.145295,0.024437), \
-		'X1-Y3-Z2-FILLET': (((1,1),(1,2),(0,2)),2.645291,0.014227), \
-		'X1-Y4-Z1': (((1,1),(1,3)),3.14,0.019), \
-		'X2-Y2-Z2-FILLET': (((1,1),(1,2),(0,2)),2.496793,0.018718) \
-		} #brickOrientations = (((side, roll), ...), rotX, height)
+"""
+brickOrientations:
+key: name of the object
+value: (((side, roll), ...), rotX, height)
+"""
+brickOrientations = {
+	'plate_1': (((1,1),(1,2),(0,2)),2.496793,0.018718), \
+	'plate_2': (((1,1),(1,2),(0,2)),2.496793,0.018718)
+}
 
-#color bricks
+# color bricks
 colorList = ['Gazebo/Indigo', 'Gazebo/Gray', 'Gazebo/Orange', \
 		'Gazebo/Red', 'Gazebo/Purple', 'Gazebo/SkyBlue', \
 		'Gazebo/DarkYellow', 'Gazebo/White', 'Gazebo/Green']
@@ -147,8 +144,15 @@ lego = [] 	#lego = [[name, type, pose, radius], ...]
 
 #get model path
 def getModelPath(model):
-	pkgPath = rospkg.RosPack().get_path(package_name)
-	return f'{pkgPath}/lego_models/{model}/model.sdf'
+    pkgPath = rospkg.RosPack().get_path(package_name)
+    lego_path = f'{pkgPath}/lego_models/{model}/model.sdf'
+    kitchen_path = f'{pkgPath}/kitchen_models/{model}/model.sdf'
+    if os.path.exists(lego_path):
+        return lego_path
+    elif os.path.exists(kitchen_path):
+        return kitchen_path
+    else:
+        raise Exception("Model not found:" + model)
 
 #set position brick
 def randomPose(brickType, rotated):
@@ -211,12 +215,10 @@ def getValidPose(brickType, rotated):
 
 #functiont to spawn model
 def spawn_model(model, pos, name=None, ref_frame='world', color=None):
-	
 	if name is None:
 		name = model
 	
 	model_xml = open(getModelPath(model), 'r').read()
-	# change model color
 	if color is not None:
 		model_xml = changeModelColor(model_xml, color)
 
@@ -233,18 +235,21 @@ def delete_model(name):
 	return delete_model_client(model_name=name)
 
 #support functon spawn bricks
-def spawnaLego(brickType=None, rotated=False):
+def spawnObject(brickType=None, rotated=False):
 	if brickType is None:
 		brickType = random.choice(brickList)
 	
 	brickIndex = brickDict[brickType][0]
-	name = f'{brickType}_{counters[brickIndex]+1}'
+	target_counter = counters
+        
+	name = f'{brickType}_{target_counter[brickIndex]+1}'
 	pos, radius = getValidPose(brickType, rotated)
-	color = random.choice(colorList)
+	
+	color = None
 
 	spawn_model(brickType, pos, name, spawn_name, color)
 	lego.append((name, brickType, pos, radius))
-	counters[brickIndex] += 1
+	target_counter[brickIndex] += 1
 
 #main function setup area and level manager
 def setUpArea(livello=None, selectBrick=None): 	
@@ -254,42 +259,46 @@ def setUpArea(livello=None, selectBrick=None):
 		count = 1
 		while delete_model(f'{brickType}_{count}').success: count += 1
 	
-	# creating spawn area
+	#screating spawn area
+	print("start spawn model...")
 	spawn_model(spawn_name, Pose(Point(*spawn_pos),None) )
-	
+	print("spawn model...")
+ 
 	try:
 		if(livello == 1):
 			#spawn random brick
-			spawnaLego(selectBrick)
-			#spawnaLego('X2-Y2-Z2',rotated=True)
+			spawnObject(selectBrick)
+			#spawnObject('X2-Y2-Z2',rotated=True)
 		elif(livello == 2):
 			#spawn all bricks
 			for brickType in brickList:
-				spawnaLego(brickType)
+				print("spawning brick: ", brickType)
+				spawnObject(brickType)
+				print("spawning brick end: ", brickType)
 		elif(livello == 3):
 			#spawn first 4 blocks	
 			for brickType in brickList[0:4]:
-				spawnaLego(brickType)
+				spawnObject(brickType)
 			#spawn three blocks rotated
-			spawnaLego('X1-Y2-Z2',rotated=True)
-			spawnaLego('X1-Y2-Z2',rotated=True)
-			spawnaLego('X2-Y2-Z2',rotated=True)
+			spawnObject('X1-Y2-Z2',rotated=True)
+			spawnObject('X1-Y2-Z2',rotated=True)
+			spawnObject('X2-Y2-Z2',rotated=True)
 		elif(livello == 4):
 			if selectBrick is None:
 				#spawn blocks build
 				spawn_dim = (0.10, 0.10)    			#spawning area
-				spawnaLego('X1-Y2-Z2',rotated=True)
-				spawnaLego('X1-Y2-Z2',rotated=True)
-				spawnaLego('X1-Y3-Z2')	
-				spawnaLego('X1-Y3-Z2')
-				spawnaLego('X1-Y1-Z2')	
-				spawnaLego('X1-Y2-Z2-TWINFILLET')
+				spawnObject('X1-Y2-Z2',rotated=True)
+				spawnObject('X1-Y2-Z2',rotated=True)
+				spawnObject('X1-Y3-Z2')	
+				spawnObject('X1-Y3-Z2')
+				spawnObject('X1-Y1-Z2')	
+				spawnObject('X1-Y2-Z2-TWINFILLET')
 			else:
 				models = getLego4Costruzione()
 				r = 3
 				for brickType in models.name:
 					r -= 1
-					spawnaLego(brickType, rotated=r>0)
+					spawnObject(brickType, rotated=r>0)
 		else:
 			print("[Error]: select level from 1 to 4")
 			return
@@ -307,8 +316,8 @@ if __name__ == '__main__':
 		if '/gazebo/spawn_sdf_model' not in rosservice.get_service_list():
 			print("Waining gazebo service..")
 			rospy.wait_for_service('/gazebo/spawn_sdf_model')
-		
-		#starting position bricks
+
+		print("starting position bricks")
 		setUpArea(level, selectBrick)
 		print("All done. Ready to start.")
 	except rosservice.ROSServiceIOException as err:

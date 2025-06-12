@@ -16,6 +16,8 @@ from gazebo_ros_link_attacher.srv import Attach, AttachRequest, AttachResponse
 
 PKG_PATH = os.path.dirname(os.path.abspath(__file__))
 
+# home - target position of the model
+# size - size of the model
 MODELS_INFO = {
     "X1-Y2-Z1": {
         "home": [0.264589, -0.293903, 0.777] 
@@ -56,6 +58,7 @@ for model, model_info in MODELS_INFO.items():
     pass
     #MODELS_INFO[model]["home"] = model_info["home"] + np.array([0.0, 0.10, 0.0])
 
+# Get size of the model
 for model, info in MODELS_INFO.items():
     model_json_path = os.path.join(PKG_PATH, "..", "models", f"lego_{model}", "model.json")
     # make path absolute
@@ -76,8 +79,12 @@ for model, info in MODELS_INFO.items():
     MODELS_INFO[model]["size"] = (size_x, size_y, size_z)
 
 # Compensate for the interlocking height
+# the lego is placed at a height of INTERLOCKING_OFFSET above the other lego.
 INTERLOCKING_OFFSET = 0.019
 
+# Safe position of the end effector
+# This is the position of the end effector when the arm is at rest
+# Usually used for smooth transitions between different tasks
 SAFE_X = -0.40
 SAFE_Y = -0.13
 SURFACE_Z = 0.774
@@ -87,13 +94,19 @@ DEFAULT_QUAT = PyQuaternion(axis=(0, 1, 0), angle=math.pi)
 # Resting position of the end effector
 DEFAULT_POS = (-0.1, -0.2, 1.2)
 
+# Default path tolerance for motion planning
+# When the robot is moving, it will try to reach the target position with a tolerance of 10 in velocity
 DEFAULT_PATH_TOLERANCE = control_msgs.msg.JointTolerance()
 DEFAULT_PATH_TOLERANCE.name = "path_tolerance"
 DEFAULT_PATH_TOLERANCE.velocity = 10
 
 def get_gazebo_model_name(model_name, vision_model_pose):
     """
-        Get the name of the model inside gazebo. It is needed for link attacher plugin.
+        Get the real name of the model inside gazebo. It is needed for link attacher plugin.
+        Approach:
+        1. Get all models in gazebo
+        2. Get all models with the same name as the vision model
+        3. Get the model with the closest position to the vision model
     """
     models = rospy.wait_for_message("/gazebo/model_states", ModelStates, timeout=None)
     epsilon = 0.05
@@ -108,11 +121,18 @@ def get_gazebo_model_name(model_name, vision_model_pose):
 
 
 def get_model_name(gazebo_model_name):
+    """
+        Get the (lego) model name from the gazebo model name
+    """
     return gazebo_model_name.replace("lego_", "").split("_", maxsplit=1)[0]
 
 
 def get_legos_pos(vision=False):
-    #get legos position reading vision topic
+    """
+        Get the position of the legos
+        if vision == False: get legos position reading gazebo topic - cheating
+        if vision == True: get legos position reading vision topic - real world application
+    """
     if vision:
         legos = rospy.wait_for_message("/lego_detections", ModelStates, timeout=None)
     else:
@@ -130,6 +150,10 @@ def get_legos_pos(vision=False):
 
 
 def straighten(model_pose, gazebo_model_name):
+    """
+        Straighten the model
+        To make the model straight, we need to move it to the surface and then rotate it to the correct orientation
+    """
     x = model_pose.position.x
     y = model_pose.position.y
     z = model_pose.position.z
@@ -145,13 +169,13 @@ def straighten(model_pose, gazebo_model_name):
         Calculate approach quaternion and target quaternion
     """
 
-    facing_direction = get_axis_facing_camera(model_quat)
-    approach_angle = get_approach_angle(model_quat, facing_direction)
+    facing_direction = get_axis_facing_camera(model_quat) # get the direction the lego is facing
+    approach_angle = get_approach_angle(model_quat, facing_direction) # get the angle for the gripper to approach the model
 
     print(f"Lego is facing {facing_direction}")
     print(f"Angle of approaching measures {approach_angle:.2f} deg")
 
-    # Calculate approach quat
+    # Calculate approach quat for the gripper
     approach_quat = get_approach_quat(facing_direction, approach_angle)
 
     # Get above the object
@@ -289,7 +313,7 @@ def get_approach_quat(facing_direction, approach_angle):
 
     return quat
 
-
+"""
 def get_axis_facing_camera(quat):
     axis_x = np.array([1, 0, 0])
     axis_y = np.array([0, 1, 0])
@@ -310,6 +334,29 @@ def get_axis_facing_camera(quat):
         #else:
         #    raise Exception(f"Invalid axis {new_axis_x}")
     else:
+        return 0, 0, -1
+"""
+
+def get_axis_facing_camera(quat):
+    axis_x = np.array([1, 0, 0])
+    axis_y = np.array([0, 1, 0])
+    axis_z = np.array([0, 0, 1])
+    new_axis_x = quat.rotate(axis_x)  # 将固定坐标系的 X 轴通过四元数旋转，得到积木坐标系的 X 轴
+    new_axis_y = quat.rotate(axis_y)  # 同理，得到积木坐标系的 Y 轴
+    new_axis_z = quat.rotate(axis_z)  # 得到积木坐标系的 Z 轴（通常为积木的“顶部”方向）
+
+    # 计算积木 Z 轴（new_axis_z）与固定坐标系 Z 轴（axis_z）的夹角
+    angle = np.arccos(np.clip(np.dot(new_axis_z, axis_z), -1.0, 1.0))
+
+    # 根据夹角判断积木是“上下朝向”还是“侧向朝向”
+    if angle < np.pi / 3:  # 夹角小于 60°，认为积木 Z 轴朝上（正放）
+        return 0, 0, 1
+    elif angle < np.pi / 3 * 2 * 1.2:  # 夹角在 60°~约 144°之间，认为积木侧向朝向
+        if abs(new_axis_x[2]) > abs(new_axis_y[2]):  # 比较积木 X 轴和 Y 轴在固定 Z 轴上的投影绝对值
+            return 1, 0, 0  # X 轴投影更大，说明积木朝左或朝右（X 轴方向）
+        else:
+            return 0, 1, 0  # Y 轴投影更大，说明积木朝前或朝后（Y 轴方向）
+    else:  # 夹角大于约 144°，认为积木 Z 轴朝下（倒置）
         return 0, 0, -1
 
 
@@ -340,6 +387,7 @@ def set_gripper(value):
 
 
 if __name__ == "__main__":
+    # initialization
     print("Initializing node of kinematics")
     rospy.init_node("send_joints")
 
@@ -362,11 +410,15 @@ if __name__ == "__main__":
 
     controller.move_to(*DEFAULT_POS, DEFAULT_QUAT)
 
+    # perception
     print("Waiting for detection of the models")
     rospy.sleep(0.5)
+    # detection: position and pose
     legos = get_legos_pos(vision=True)
+    # planning: pick order
     legos.sort(reverse=True, key=lambda a: (a[1].position.x, a[1].position.y))
 
+    # planning: motion planning
     for model_name, model_pose in legos:
         open_gripper()
         try:

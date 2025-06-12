@@ -37,13 +37,6 @@ a_show = '-show' in argv
 # Utility Functions
 
 def get_dist_tavolo(depth, hsv, img_draw):
-    """
-    Get the distance of the table from the camera
-    Args:
-        depth (_type_): 
-        hsv (_type_): 
-        img_draw (_type_): 
-    """
     global dist_tavolo
 
     #color = (120,1,190)
@@ -53,68 +46,24 @@ def get_dist_tavolo(depth, hsv, img_draw):
     dist_tavolo = np.nanmax(depth)
 
 def get_origin(img):
-    """
-    Get the origin point of the image
-    """
     global origin
     origin = np.array(img.shape[1::-1]) // 2
 
 def get_lego_distance(depth):
-    """
-    Get the distance of the lego from the camera
-    """
     return depth.min()
 
 def get_lego_color(center, rgb):
-    """
-    Get the color of the lego from the center of the image
-
-    Args:
-        center (_type_): _description_
-        rgb (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
     return rgb[center].tolist()
 
 def get_lego_mask(color, hsv, toll = (20, 20, 255)):
-    """
-    Get the mask of the lego by the color - because the color of the lego is consistant and unique
-
-    Args:
-        color (_type_): _description_
-        hsv (_type_): _description_
-        toll (tuple, optional): _description_. Defaults to (20, 20, 255).
-
-    Returns:
-        _type_: _description_
-    """
     thresh = np.array(color)
     mintoll = thresh - np.array([toll[0], toll[1], min(thresh[2]-1, toll[2])])
     maxtoll = thresh + np.array(toll)
     return cv.inRange(hsv, mintoll, maxtoll)
 
 def getDepthAxis(height, lego):
-    """
-    Get the axis of the lego from the height of the lego
-    Args:
-        height (_type_): _description_
-        lego (_type_): _description_
-    Return: 
-        pinN, ax, isCorrect
-        pinN: pin number
-        ax: axis (0=X, 1=Y, 2=Z)
-        isCorrect: if the lego is correctly classified
-    getDepthAxis 函数通过比例计算和误差分析，将乐高积木的实际高度
-    映射到其标称的几何结构（X/Y/Z 轴引脚数），从而验证分类并确定方向。
-    这一逻辑结合了物理建模（如乐高积木的标准尺寸）和算法优化（误差惩罚），
-    是视觉定位系统中实现积木类型匹配与姿态估计的关键步骤。
-    """
-    # extract xyz from the name of the lego
     X, Y, Z = (int(x) for x in lego[1:8:3])
     #Z = (0.038, 0.057) X = (0.031, 0.063) Y = (0.031, 0.063, 0.095, 0.127)
-    
     rapZ = height / 0.019 - 1
     pinZ = round(rapZ)
     rapXY = height / 0.032
@@ -129,17 +78,11 @@ def getDepthAxis(height, lego):
         else: return pinXY, 0, pinXY == X
 
 def point_distorption(point, height, origin):
-    """
-    Point distorsion function for camera
-    """
     p = dist_tavolo / (dist_tavolo - height)
     point = point - origin
     return p * point + origin
 
 def point_inverse_distortption(point, height):
-    """
-    Point inverse distorsion function for camera
-    """
     p = dist_tavolo / (dist_tavolo - height)
     point = point - origin
     return point / p + origin
@@ -156,40 +99,17 @@ def myimshow(title, img):
 
 
 def process_item(imgs, item):
-    """
-    Process a single item from the YOLO output
-    including position, orientation and height
-    return the message for publish.
-    1. imgs:
-        - rgb: rgb image
-        - hsv: hsv image
-        - depth: depth image
-        - img_draw: image draw
-       item: YOLO output item
-        - x1, y1, x2, y2: coordinates of the bounding box
-        - cn: confidence
-        - cl: class
-        - nm: name
-    2. crop img with bounding box
-    3. get mask of the lego by color: to get depth, distance
-    4. detect model orientation with depth image
-    5. adjust the prediction with geometry characteristics
-    6. extract and process contours of the top surface of the lego to find the center and minimal rect
-    7. adjust coordinates with distortion
-    8. conversion from camera to world coordinates
-    9. publish the message
-    """
+
     #images
     rgb, hsv, depth, img_draw = imgs
     #obtaining Yolo informations (class, coordinates, center)
     x1, y1, x2, y2, cn, cl, nm = item.values()
-    # use mar=15 to avoid the error of the bounding box
     mar = 15
     x1, y1 = max(mar, x1), max(mar, y1)
     x2, y2 = min(rgb.shape[1]-mar, x2), min(rgb.shape[0]-mar, y2)
     boxMin = np.array((x1-mar, y1-mar))
     x1, y1, x2, y2 = np.int0((x1, y1, x2, y2))
-    
+
     boxCenter = (y2 + y1) // 2, (x2 + x1) // 2
     color = get_lego_color(boxCenter, rgb)
     hsvcolor = get_lego_color(boxCenter, hsv)
@@ -306,10 +226,10 @@ def process_item(imgs, item):
     top_box = l_box.copy()
     vertexs_norm = [(i, np.linalg.norm(vec - origin)) for vec, i in zip(l_box, range(4))]
     vertexs_norm.sort(key=lambda tup: tup[1])
-    # get closest vertex to the image origin point
+    # get closest vertex
     iver = vertexs_norm[0][0]
     vec = l_box[iver]
-    # distorping closest vertex (consider the distrotion by the height)
+    # distorping closest vertex
     if or_nm == 'sopra': l_height -= 0.019
     top_box[iver] = point_distorption(l_box[iver], l_height, origin)
     v0 = top_box[iver] - vec
@@ -429,7 +349,6 @@ def process_item(imgs, item):
         dotclamp = max(-1, min(1, np.dot(vec, np.array(ax))))
         return wise * np.arccos(dotclamp)
 
-    # publish
     msg = ModelStates()
     msg.name = nm
     #fov = 1.047198
