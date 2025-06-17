@@ -1,12 +1,12 @@
 <?xml version='1.0'?>
 <sdf version='1.6'>
-  <model name='tray'>
-    <link name='link_13'>
-        <visual name='visual'>
+  <model name='plate_2'>
+    <link name='link_12'>
+       <visual name='visual'>
         <pose frame=''>0 0 0 0 -0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://tray/meshes/tray.dae</uri>
+            <uri>model://plate_2/meshes/plate_2.dae</uri>
             <scale>1 1 1</scale>
           </mesh>
         </geometry>
@@ -16,8 +16,8 @@
             <uri>file://media/materials/scripts/gazebo.material</uri>
             <name>Gazebo/Grey</name>
           </script>
-          <ambient>0.662 0.87 0.854 1</ambient>
-          <diffuse>0.662 0.87 0.854 1</diffuse>
+          <ambient>0.694 0.694 0.694 1</ambient>
+          <diffuse>0.694 0.694 0.694 1</diffuse>
           <specular>0.01 0.01 0.01 1</specular>
           <emissive>0 0 0 1</emissive>
           <shader type='vertex'>
@@ -33,11 +33,11 @@
         <pose frame=''>0 0 0 0 -0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://tray/meshes/tray.dae</uri>
+            <uri>model://plate_2/meshes/plate_2.dae</uri>
             <scale>1 1 1</scale>
           </mesh>
         </geometry>
-       </collision>
+        </collision>
     </link>
     <static>0</static>
     <allow_auto_disable>1</allow_auto_disable>

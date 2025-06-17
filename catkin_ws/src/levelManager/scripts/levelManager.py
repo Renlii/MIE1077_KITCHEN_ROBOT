@@ -220,6 +220,7 @@ def spawn_model(model, pos, name=None, ref_frame='world', color=None):
 	if color is not None:
 		model_xml = changeModelColor(model_xml, color)
 
+	print("model:", model, pos, name, ref_frame, color)
 	spawn_model_client = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
 	return spawn_model_client(model_name=name, 
 	    model_xml=model_xml,

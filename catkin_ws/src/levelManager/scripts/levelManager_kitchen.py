@@ -115,11 +115,11 @@ def readArgs():
 """
 brickDict:
 key: name of the object
-value: (type, (x,y,z) - size information)
+value: (type, (x,y,height) - size information and height)
 """
 brickDict = { \
-    'plate_1': (0, (0.15,0.15,0.057)),
-    'plate_2': (1, (0.15,0.15,0.057))
+    'plate_1': (0, (0.15,0.15,0.2)),
+    'plate_2': (1, (0.15,0.15,0.45))
 }
 
 """
@@ -128,8 +128,8 @@ key: name of the object
 value: (((side, roll), ...), rotX, height)
 """
 brickOrientations = {
-	'plate_1': (((1,1),(1,2),(0,2)),2.496793,0.018718), \
-	'plate_2': (((1,1),(1,2),(0,2)),2.496793,0.018718)
+	'plate_1': (((1,1),(1,3)),-1.715224,0.18), \
+	'plate_2': (((1,1),(1,3)),2.496793,0.20)
 }
 
 # color bricks
@@ -193,7 +193,10 @@ def randomPose(brickType, rotated):
 class PoseError(Exception):
 	pass
 
-#function to get a valid pose
+"""
+function to get a valid pose
+check if there is a brick in the area to avoid collision
+"""
 def getValidPose(brickType, rotated):
 	trys = 1000
 	valid = False
@@ -201,6 +204,7 @@ def getValidPose(brickType, rotated):
 		pos, dim1, dim2 = randomPose(brickType, rotated)
 		radius = np.sqrt((dim1**2 + dim2**2)) / 2
 		valid = True
+		# check if there is a brick in the area
 		for brick in lego:
 			point = brick[2].position
 			r2 = brick[3]
@@ -209,7 +213,7 @@ def getValidPose(brickType, rotated):
 				valid = False
 				trys -= 1
 				if trys == 0:
-					raise PoseError("Nessun spazio nell'area di spawn")
+					raise PoseError(f"Fail to spawn {brickType} due to collision")
 				break
 	return pos, radius
 
@@ -217,11 +221,11 @@ def getValidPose(brickType, rotated):
 def spawn_model(model, pos, name=None, ref_frame='world', color=None):
 	if name is None:
 		name = model
-	
 	model_xml = open(getModelPath(model), 'r').read()
 	if color is not None:
 		model_xml = changeModelColor(model_xml, color)
-
+	print(f"==== spawning model: {model}\npose: {pos}\nname: {name}")
+ 
 	spawn_model_client = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
 	return spawn_model_client(model_name=name, 
 	    model_xml=model_xml,
@@ -245,7 +249,8 @@ def spawnObject(brickType=None, rotated=False):
 	name = f'{brickType}_{target_counter[brickIndex]+1}'
 	pos, radius = getValidPose(brickType, rotated)
 	
-	color = None
+	color = random.choice(colorList)
+	# color = None
 
 	spawn_model(brickType, pos, name, spawn_name, color)
 	lego.append((name, brickType, pos, radius))
@@ -257,12 +262,12 @@ def setUpArea(livello=None, selectBrick=None):
 	#delete all bricks on the table
 	for brickType in brickList:	#ripulisce
 		count = 1
-		while delete_model(f'{brickType}_{count}').success: count += 1
+		while delete_model(f'{brickType}_{count}').success: 
+			print("deleting", brickType, count)
+			count += 1
 	
 	#screating spawn area
-	print("start spawn model...")
 	spawn_model(spawn_name, Pose(Point(*spawn_pos),None) )
-	print("spawn model...")
  
 	try:
 		if(livello == 1):
@@ -272,9 +277,7 @@ def setUpArea(livello=None, selectBrick=None):
 		elif(livello == 2):
 			#spawn all bricks
 			for brickType in brickList:
-				print("spawning brick: ", brickType)
 				spawnObject(brickType)
-				print("spawning brick end: ", brickType)
 		elif(livello == 3):
 			#spawn first 4 blocks	
 			for brickType in brickList[0:4]:
@@ -287,12 +290,18 @@ def setUpArea(livello=None, selectBrick=None):
 			if selectBrick is None:
 				#spawn blocks build
 				spawn_dim = (0.10, 0.10)    			#spawning area
-				spawnObject('X1-Y2-Z2',rotated=True)
-				spawnObject('X1-Y2-Z2',rotated=True)
-				spawnObject('X1-Y3-Z2')	
-				spawnObject('X1-Y3-Z2')
-				spawnObject('X1-Y1-Z2')	
-				spawnObject('X1-Y2-Z2-TWINFILLET')
+				import time
+				spawnObject('plate_2')
+				time.sleep(2)
+				spawnObject('plate_2')
+				time.sleep(2)
+				spawnObject('plate_2')	
+				time.sleep(2)
+				spawnObject('plate_2')
+				time.sleep(2)
+				spawnObject('plate_2')	
+				time.sleep(2)
+				spawnObject('plate_2')
 			else:
 				models = getLego4Costruzione()
 				r = 3
@@ -317,9 +326,7 @@ if __name__ == '__main__':
 			print("Waining gazebo service..")
 			rospy.wait_for_service('/gazebo/spawn_sdf_model')
 
-		print("starting position bricks")
 		setUpArea(level, selectBrick)
-		print("All done. Ready to start.")
 	except rosservice.ROSServiceIOException as err:
 		print("No ROS master execution")
 		pass
