@@ -7,7 +7,7 @@
         <geometry>
           <mesh>
             <uri>model://plate_2/meshes/plate_2.dae</uri>
-            <scale>0.5 0.8 1.5</scale>
+            <scale>0.5 0.8 2.0</scale>
           </mesh>
         </geometry>
         <material>
@@ -35,7 +35,7 @@
         <geometry>
           <mesh>
             <uri>model://plate_2/meshes/plate_2.dae</uri>
-            <scale>0.5 0.8 1.5</scale>
+            <scale>0.5 0.8 2.0</scale>
           </mesh>
         </geometry>
 
@@ -63,7 +63,7 @@
       <!-- ========= INERTIA ========= -->
       <inertial>
         <!-- Typical ceramic plate mass -->
-        <mass>0.4</mass>
+        <mass>1</mass>
         <inertia>
           <!-- Solid disk inertia: I = ½ m r²; r = 0.13 m → I ≈ 0.003 kg·m² -->
           <ixx>0.003</ixx>
@@ -75,7 +75,7 @@
         </inertia>
       </inertial>
 
-      
+
     </link>
     <static>0</static>
     <allow_auto_disable>1</allow_auto_disable>

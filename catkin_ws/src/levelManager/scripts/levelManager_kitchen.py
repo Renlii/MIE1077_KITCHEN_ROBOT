@@ -14,11 +14,6 @@ import xml.etree.ElementTree as ET
 
 path = rospkg.RosPack().get_path("levelManager")
 
-costruzioni = ['costruzione-1', 'costruzione-2']
-
-def randomCostruzione():
-	return random.choice(costruzioni)
-
 def getPose(modelEl):
 	strpose = modelEl.find('pose').text
 	return [float(x) for x in strpose.split(" ")]
@@ -36,35 +31,6 @@ def get_Parent_Child(jointEl):
 	child = jointEl.find('child').text.split('::')[0]
 	return parent, child
 
-
-def getLego4Costruzione(select=None):
-	nome_cost = randomCostruzione()
-	if select is not None: nome_cost = costruzioni[select]
-	print("spawning", nome_cost)
-
-	tree = ET.parse(f'{path}/lego_models/{nome_cost}/model.sdf')
-	root = tree.getroot()
-	costruzioneEl = root.find('model')
-
-	brickEls = []
-	for modEl in costruzioneEl:
-		if modEl.tag in ['model', 'include']:
-			brickEls.append(modEl)
-
-	models = ModelStates()
-	for bEl in brickEls:
-		pose = getPose(bEl)
-		models.name.append(get_Name_Type(bEl)[1])
-		rot = Quaternion(*quaternion_from_euler(*pose[3:]))
-		models.pose.append(Pose(Point(*pose[:3]), rot))
-
-	rospy.init_node("levelManager")
-	istruzioni = rospy.Publisher("costruzioneIstruzioni", ModelStates, queue_size=1)
-	istruzioni.publish(models)
-
-	return models
-
-
 def changeModelColor(model_xml, color):
 	root = ET.XML(model_xml)
 	root.find('.//material/script/name').text = color
@@ -76,12 +42,12 @@ package_name = "levelManager"
 spawn_name = '_spawn'
 level = None
 selectBrick = None
-maxLego = 11
 spawn_pos = (-0.35, -0.42, 0.74)  		#center of spawn area
 spawn_dim = (0.32, 0.23)    			#spawning area
 min_space = 0.010    					#min space between lego
 min_distance = 0.15   					#min distance between lego
-
+enable_collision = False                #if True: dishes can be stacked together
+enable_rotation = False                 #if True: dishes can be rotated
 #function parsing arguments
 def readArgs():
 	global package_name
@@ -118,8 +84,7 @@ key: name of the object
 value: (type, (x,y,height) - size information and height)
 """
 brickDict = { \
-    'plate_1': (0, (0.15,0.15,0.2)),
-    'plate_2': (1, (0.15,0.15,0.45))
+    'plate_1': (0, (0.15,0.15,0.2))
 }
 
 """
@@ -128,8 +93,7 @@ key: name of the object
 value: (((side, roll), ...), rotX, height)
 """
 brickOrientations = {
-	'plate_1': (((1,1),(1,3)),-1.715224,0.18), \
-	'plate_2': (((1,1),(1,3)),2.496793,0.20)
+	'plate_1': (((1,1),(1,3)),-1.715224,0.18)
 }
 
 # color bricks
@@ -291,17 +255,13 @@ def setUpArea(livello=None, selectBrick=None):
 				#spawn blocks build
 				spawn_dim = (0.10, 0.10)    			#spawning area
 				import time
-				spawnObject('plate_2')
+				spawnObject('plate_1')
 				time.sleep(2)
-				spawnObject('plate_2')
+				spawnObject('plate_1')
 				time.sleep(2)
-				spawnObject('plate_2')	
+				spawnObject('plate_1')	
 				time.sleep(2)
-				spawnObject('plate_2')
-				time.sleep(2)
-				spawnObject('plate_2')	
-				time.sleep(2)
-				spawnObject('plate_2')
+				spawnObject('plate_1')
 			else:
 				models = getLego4Costruzione()
 				r = 3
