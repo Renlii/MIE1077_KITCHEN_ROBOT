@@ -63,5 +63,14 @@
       </include>
     </model>
 
+    <model name="dish_washer">
+      <static>true</static>
+      <include>
+        <uri>model://dish_washer_simulation</uri>
+         <pose>0.72 -0.76 0.78 0 0 0</pose>
+         <!-- <pose>0.43 -0.50 0.74 0 0 1.57079</pose> -->
+      </include>
+    </model>
+
   </world>
 </sdf>

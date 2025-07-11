@@ -44,10 +44,48 @@ level = None
 selectBrick = None
 spawn_pos = (-0.35, -0.42, 0.74)  		#center of spawn area
 spawn_dim = (0.32, 0.23)    			#spawning area
-min_space = 0.010    					#min space between lego
-min_distance = 0.15   					#min distance between lego
+min_space = 0.010    					#min space between objs
+min_distance = 0.15   					#min distance between objs
 enable_collision = False                #if True: dishes can be stacked together
 enable_rotation = False                 #if True: dishes can be rotated
+
+"""
+objDict:
+key: name of the object
+value: (type, (x,y,height) - size information and height)
+"""
+objDict = {
+    'plate_1': (0, (0.15,0.15,0.2)),
+    'bottle_red_wine': (1, (0.05, 0.05, 0.25)),
+    'bottle_white_wine': (2, (0.05, 0.05, 0.25)),
+    'bottle_beer': (3, (0.04, 0.04, 0.22)),
+    'cup_blue': (4, (0.07, 0.07, 0.1)),
+    'cup_glass': (5, (0.07, 0.07, 0.1)),
+    'cup_glass_hex': (6, (0.07, 0.07, 0.1)),
+    'cup_green': (7, (0.07, 0.07, 0.1)),
+    'cup_paper': (8, (0.07, 0.07, 0.1)),
+    'cup_yellow': (9, (0.07, 0.07, 0.1)),
+    'mug_beer': (10, (0.08, 0.08, 0.12)),
+}
+
+"""
+objOrientations:
+key: name of the object
+value: (((side, roll), ...), rotX, height)
+"""
+objOrientations = {
+	'plate_1': (((1,1),(1,3)),-1.715224,0.18)
+}
+
+# color bricks
+colorList = ['Gazebo/Indigo', 'Gazebo/Gray', 'Gazebo/Orange', \
+		'Gazebo/Red', 'Gazebo/Purple', 'Gazebo/SkyBlue', \
+		'Gazebo/DarkYellow', 'Gazebo/White', 'Gazebo/Green']
+
+objs = [] 	#objs = [[name, type, pose, radius], ...]
+objList = list(objDict.keys())
+counters = [0 for brick in objList]
+
 #function parsing arguments
 def readArgs():
 	global package_name
@@ -66,7 +104,7 @@ def readArgs():
 					level = int(sys.argv[argn])
 				elif arg in ['-b', '-brick']:
 					argn += 1
-					selectBrick = brickList[int(sys.argv[argn])]
+					selectBrick = objList[int(sys.argv[argn])]
 				else:
 					raise Exception()
 			else: raise Exception()
@@ -77,34 +115,6 @@ def readArgs():
 					+ "\n\t -b | -brick: spawn specific grip from 0 to 10")
 		exit()
 		pass
-
-"""
-brickDict:
-key: name of the object
-value: (type, (x,y,height) - size information and height)
-"""
-brickDict = { \
-    'plate_1': (0, (0.15,0.15,0.2))
-}
-
-"""
-brickOrientations:
-key: name of the object
-value: (((side, roll), ...), rotX, height)
-"""
-brickOrientations = {
-	'plate_1': (((1,1),(1,3)),-1.715224,0.18)
-}
-
-# color bricks
-colorList = ['Gazebo/Indigo', 'Gazebo/Gray', 'Gazebo/Orange', \
-		'Gazebo/Red', 'Gazebo/Purple', 'Gazebo/SkyBlue', \
-		'Gazebo/DarkYellow', 'Gazebo/White', 'Gazebo/Green']
-
-brickList = list(brickDict.keys())
-counters = [0 for brick in brickList]
-
-lego = [] 	#lego = [[name, type, pose, radius], ...]
 
 #get model path
 def getModelPath(model):
@@ -120,7 +130,7 @@ def getModelPath(model):
 
 #set position brick
 def randomPose(brickType, rotated):
-	_, dim, = brickDict[brickType]
+	_, dim, = objDict[brickType]
 	spawnX = spawn_dim[0]
 	spawnY = spawn_dim[1]
 	rotX = 0
@@ -131,15 +141,14 @@ def randomPose(brickType, rotated):
 	pointZ = dim[2]/2
 	dim1 = dim[0]
 	dim2 = dim[1]
+ 
 	if rotated:
-		side = random.randint(0, 1) 	#0=z/x, 1=z/y
-		if (brickType == "X2-Y2-Z2"):
-			roll = random.randint(1, 1)	#0=z, 1=x/y, 2=z. 3=x/y
-		else:
-			roll = random.randint(2, 2) #0=z, 1=x/y, 2=z. 3=x/y
+		side = random.randint(0, 1) #0=z/x, 1=z/y
+		roll = random.randint(1, 3) #0=z, 1=x/y, 2=z. 3=x/y
 
-		orients = brickOrientations.get(brickType, ((),0,0) )		
+		orients = objOrientations.get(brickType, ((),0,0) )		
 		if (side, roll) not in orients[0]:
+			# side = 0: rotate on x, 1: rotate on y
 			rotX = (side)*roll*1.57
 			rotY = (1-side)*roll*1.57
 			if roll % 2 != 0:
@@ -169,7 +178,7 @@ def getValidPose(brickType, rotated):
 		radius = np.sqrt((dim1**2 + dim2**2)) / 2
 		valid = True
 		# check if there is a brick in the area
-		for brick in lego:
+		for brick in objs:
 			point = brick[2].position
 			r2 = brick[3]
 			minDist = max(radius + r2 + min_space, min_distance)
@@ -205,9 +214,9 @@ def delete_model(name):
 #support functon spawn bricks
 def spawnObject(brickType=None, rotated=False):
 	if brickType is None:
-		brickType = random.choice(brickList)
+		brickType = random.choice(objList)
 	
-	brickIndex = brickDict[brickType][0]
+	brickIndex = objDict[brickType][0]
 	target_counter = counters
         
 	name = f'{brickType}_{target_counter[brickIndex]+1}'
@@ -217,14 +226,14 @@ def spawnObject(brickType=None, rotated=False):
 	# color = None
 
 	spawn_model(brickType, pos, name, spawn_name, color)
-	lego.append((name, brickType, pos, radius))
+	objs.append((name, brickType, pos, radius))
 	target_counter[brickIndex] += 1
 
 #main function setup area and level manager
 def setUpArea(livello=None, selectBrick=None): 	
 
 	#delete all bricks on the table
-	for brickType in brickList:	#ripulisce
+	for brickType in objList:	#ripulisce
 		count = 1
 		while delete_model(f'{brickType}_{count}').success: 
 			print("deleting", brickType, count)
@@ -240,16 +249,16 @@ def setUpArea(livello=None, selectBrick=None):
 			#spawnObject('X2-Y2-Z2',rotated=True)
 		elif(livello == 2):
 			#spawn all bricks
-			for brickType in brickList:
+			for brickType in objList:
 				spawnObject(brickType)
 		elif(livello == 3):
 			#spawn first 4 blocks	
-			for brickType in brickList[0:4]:
+			for brickType in objList[0:4]:
 				spawnObject(brickType)
-			#spawn three blocks rotated
-			spawnObject('X1-Y2-Z2',rotated=True)
-			spawnObject('X1-Y2-Z2',rotated=True)
-			spawnObject('X2-Y2-Z2',rotated=True)
+			# #spawn three blocks rotated
+			# spawnObject('X1-Y2-Z2',rotated=True)
+			# spawnObject('X1-Y2-Z2',rotated=True)
+			# spawnObject('X2-Y2-Z2',rotated=True)
 		elif(livello == 4):
 			if selectBrick is None:
 				#spawn blocks build
@@ -275,7 +284,7 @@ def setUpArea(livello=None, selectBrick=None):
 		print("[Error]: no space in spawning area")
 		pass
 		
-	print(f"Added {len(lego)} bricks")
+	print(f"Added {len(objs)} bricks")
 
 if __name__ == '__main__':
 
@@ -301,5 +310,5 @@ if __name__ == '__main__':
 		pass
 	except FileNotFoundError as err:
 		print(f"Model not found: \n{err}")
-		print(f"Check model in folder'{package_name}/lego_models'")
+		print(f"Check model in folder'{package_name}/kitchen_models'")
 		pass

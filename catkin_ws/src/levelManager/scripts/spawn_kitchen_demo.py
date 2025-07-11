@@ -7,6 +7,8 @@ import rospkg
 from gazebo_msgs.srv import SpawnModel, DeleteModel
 from levelManager_kitchen import spawn_pos, spawn_dim
 from geometry_msgs.msg import *
+from tf.transformations import quaternion_from_euler
+from pyquaternion import Quaternion
 
 package_name = "levelManager"
 pose = []
@@ -38,25 +40,35 @@ def spawn_sdf_model():
         model = "cup_green"
         
     model_path = find_model_path(model)
-        
+    print(model_path)
     with open(model_path, 'r') as f:
         model_xml = f.read()
 
     # delete
+    print("deleting...")
     rospy.wait_for_service('/gazebo/delete_model')
     try:
         delete_model_client = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
         delete_model_client(model_name=model)
     except rospy.ServiceException as e:
         print("Service call failed: %s" % e)
-    rospy.sleep(0.15)
+    import time
+    time.sleep(1)
+    
+    # pose 
+    pose = randomPose()
+    # ori = Quaternion(*quaternion_from_euler(0.01, 0, 0))
+    pose = Pose(Point(0.50, -0.90, 0.78), None)
+    print(pose)
     
     # spawn
-    pose = randomPose()
+    print("spawning...")
+    ref = "_spawn"
+    ref = "world"
     rospy.wait_for_service('/gazebo/spawn_sdf_model')
     try:
         spawn_model_prox = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
-        resp = spawn_model_prox(model, model_xml, "", pose, "_spawn")
+        resp = spawn_model_prox(model, model_xml, "", pose, ref)
         print("Spawn status:\n", resp.status_message)
     except rospy.ServiceException as e:
         rospy.logerr("Spawn service call failed: {0}".format(e))

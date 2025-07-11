@@ -1,0 +1,65 @@
+<?xml version='1.0'?>
+<sdf version='1.6'>
+  <model name='spoon'>
+    <link name="body">
+      <!-- ========= VISUALS ========= -->
+      <visual name="spoon">
+        <geometry>
+          <mesh>
+            <uri>model://spoon/meshes/model.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <collision name='collision'>
+        <density>4000.0</density>
+        <laser_retro>0</laser_retro>
+        <max_contacts>5</max_contacts>
+        <pose frame=''>0 0 0 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://spoon/meshes/model.dae</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+
+        <surface>
+          <contact>
+            <ode>
+              <kp>1e7</kp>
+              <kd>1.0</kd>
+              <max_vel>0.2</max_vel>
+              <min_depth>0.5</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>0.05</mu>
+              <mu2>0.05</mu2>
+            </ode>
+          </friction>
+        </surface>
+
+      </collision>
+
+      <!-- ========= INERTIA ========= -->
+      <inertial>
+        <!-- 设定质量 -->
+        <mass>0.05</mass>
+
+        <!-- 把重心移动到中间-->
+        <pose>0.018 0.06 0 0 0 0</pose>
+
+        <!-- 简化惯性矩阵（实际值可通过 meshlab、blender 获取） -->
+        <inertia
+          ixx="0.0001" ixy="0.0"  ixz="0.0"
+          iyy="0.0001" iyz="0.0"
+          izz="0.0001"/>
+      </inertial>
+    </link>
+
+    <static>0</static>
+    <allow_auto_disable>1</allow_auto_disable>
+  </model>
+</sdf>
